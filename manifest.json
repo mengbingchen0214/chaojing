@@ -1,0 +1,13 @@
+{
+  "name": "临摹书架",
+  "short_name": "临摹",
+  "description": "经典汉字临摹练字",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f0ebe0",
+  "theme_color": "#5a3e28",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

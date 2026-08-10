@@ -1,0 +1,998 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#5a3e28" id="meta-theme">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon.svg">
+<title>临摹书架</title>
+<style>
+/* ══ 主题变量 ══ */
+:root {
+  --bg:         #f0ebe0;
+  --bg2:        #f5f0e8;
+  --bg3:        #faf6ee;
+  --bg-card:    #fff9f2;
+  --bg-canvas:  #fffef9;
+  --text:       #3a2a10;
+  --text2:      #7a5030;
+  --text3:      #6b5a48;   /* WCAG AA on light bg */
+  --accent:     #5a3e28;
+  --accent-lt:  #8b5e2a;
+  --border:     rgba(180,140,100,0.2);
+  --shadow:     rgba(0,0,0,0.09);
+  --shadow-d:   rgba(0,0,0,0.22);
+  --shelf1:     #e8dcc8;
+  --shelf2:     #d4c4a8;
+  --plank1:     #b8a080;
+  --plank2:     #9a8060;
+  --panel-w:    min(300px, calc(100vw - 48px));
+}
+[data-theme="dark"] {
+  --bg:         #141210;
+  --bg2:        #1a1710;
+  --bg3:        #1c1a14;
+  --bg-card:    #221e16;
+  --bg-canvas:  #1e1c16;
+  --text:       #d4c4a0;
+  --text2:      #c8a870;
+  --text3:      #a09070;   /* WCAG AA on dark bg (~5.9:1) */
+  --accent:     #c8922a;
+  --accent-lt:  #e0a830;
+  --border:     rgba(200,160,80,0.15);
+  --shadow:     rgba(0,0,0,0.4);
+  --shadow-d:   rgba(0,0,0,0.6);
+  --shelf1:     #2a2418;
+  --shelf2:     #201c14;
+  --plank1:     #3a3020;
+  --plank2:     #2a2416;
+}
+
+/* ══ 基础 ══ */
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  background: var(--bg);
+  min-height: 100dvh;
+  font-family: KaiTi, STKaiti, 楷体, serif;
+  color: var(--text);
+  overflow-x: hidden;
+  transition: background .3s, color .3s;
+}
+
+/* #2 touch-action 全局 */
+button, [role="button"] { touch-action: manipulation; cursor: pointer; }
+
+/* #4 页面切换动画 */
+.page { display: none; }
+.page.active {
+  display: flex; flex-direction: column; min-height: 100dvh;
+  animation: pageIn .22s cubic-bezier(0.22,1,0.36,1) both;
+}
+@keyframes pageIn {
+  from { opacity:0; transform:translateY(10px); }
+  to   { opacity:1; transform:translateY(0);    }
+}
+/* #5 减少动效 */
+@media (prefers-reduced-motion: reduce) {
+  .page.active { animation: none; opacity: 1; }
+}
+
+/* ══ 通用顶部栏 ══ */
+.page-header {
+  width: 100%; display: flex; align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px 12px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0; background: var(--bg);
+  transition: background .3s, border-color .3s;
+}
+.hdr-btn {
+  background: none; border: none;
+  font-size: 20px; color: var(--text2);
+  padding: 4px 8px; border-radius: 8px;
+  font-family: inherit; transition: background .15s;
+  min-width: 44px; min-height: 44px;    /* #1 touch target */
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.hdr-btn:active { background: rgba(128,80,20,0.1); }
+.hdr-title { font-size: 17px; color: var(--text); letter-spacing: .2em; }
+
+/* ══ 书架页 ══ */
+#page-shelf { align-items: stretch; padding: 0; }
+#page-shelf .page-header {
+  background: #1c1408;
+  border-bottom: 1px solid rgba(200,160,80,0.1);
+}
+#page-shelf .hdr-title { color: rgba(220,195,150,0.9); }
+#page-shelf .hdr-btn   { color: rgba(200,160,80,0.75); }
+
+/* 整个书架场景——深色木质氛围 */
+.shelf-scene {
+  flex: 1;
+  background:
+    radial-gradient(ellipse 80% 40% at 50% 0%, rgba(180,120,40,0.08) 0%, transparent 70%),
+    #1a1208;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 32px 0 0;
+  gap: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.shelf-section-label {
+  font-size: 11px;
+  letter-spacing: .4em;
+  color: rgba(200,160,80,0.4);
+  align-self: flex-start;
+  padding: 0 28px 14px;
+  text-transform: uppercase;
+}
+
+/* 单层书架 */
+.shelf-unit {
+  width: 100%;
+  max-width: 420px;
+  position: relative;
+}
+
+/* 书的排列区 */
+.shelf-books {
+  display: flex;
+  align-items: flex-end;
+  gap: 5px;
+  padding: 20px 24px 0;
+  min-height: 190px;
+}
+
+/* 木质搁板 */
+.shelf-board {
+  height: 20px;
+  background:
+    repeating-linear-gradient(90deg,
+      transparent 0, transparent 55px,
+      rgba(0,0,0,0.05) 55px, rgba(0,0,0,0.05) 58px
+    ),
+    repeating-linear-gradient(90deg,
+      transparent 0, transparent 18px,
+      rgba(255,255,255,0.025) 18px, rgba(255,255,255,0.025) 19px
+    ),
+    linear-gradient(180deg, #c8a468 0%, #a07848 55%, #8a6238 100%);
+  box-shadow:
+    0 8px 28px rgba(0,0,0,0.55),
+    0 3px 8px rgba(0,0,0,0.4),
+    inset 0 3px 8px rgba(255,255,255,0.18),
+    inset 0 -3px 6px rgba(0,0,0,0.35);
+}
+
+/* 两层架之间间距 */
+.shelf-gap { height: 36px; }
+.shelf-spacer { height: 48px; }
+
+/* ── 单本书 ── */
+.bk {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  height: var(--bh, 145px);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: transform .3s cubic-bezier(0.22,1,0.36,1);
+  filter: drop-shadow(2px 5px 10px rgba(0,0,0,0.55));
+}
+.bk[data-book]:hover, .bk[data-custom-id]:hover {
+  transform: translateY(-16px);
+  filter: drop-shadow(3px 16px 20px rgba(0,0,0,0.7));
+}
+.bk[data-book]:active, .bk[data-custom-id]:active {
+  transform: translateY(-8px) scale(0.97);
+}
+
+/* 书脊面 */
+.bk-spine {
+  width: 52px;
+  border-radius: 3px 0 0 3px;
+  background: var(--bc1, #7a5230);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 0;
+  overflow: hidden;
+}
+/* 圆弧书脊光影 */
+.bk-spine::before {
+  content: '';
+  position: absolute; inset: 0;
+  background: linear-gradient(to right,
+    rgba(0,0,0,0.48) 0%,
+    rgba(0,0,0,0.12) 22%,
+    rgba(255,255,255,0.07) 52%,
+    rgba(0,0,0,0.06) 80%,
+    rgba(0,0,0,0.28) 100%
+  );
+  border-radius: inherit;
+}
+/* 顶/底装饰带 */
+.bk-band {
+  width: 72%;
+  height: 2px;
+  background: rgba(255,255,255,0.2);
+  border-radius: 1px;
+  flex-shrink: 0;
+  position: relative; z-index: 1;
+}
+/* 书名 */
+.bk-title {
+  writing-mode: vertical-rl;
+  text-orientation: upright;
+  font-size: 17px;
+  letter-spacing: .1em;
+  color: rgba(255,255,255,0.93);
+  text-shadow: 0 1px 5px rgba(0,0,0,0.65);
+  font-weight: bold;
+  z-index: 1;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+/* 进度 */
+.bk-prog {
+  font-size: 8px;
+  color: rgba(255,255,255,0.45);
+  z-index: 1;
+  writing-mode: horizontal-tb;
+  flex-shrink: 0;
+}
+/* 书页厚度（右侧） */
+.bk-edge {
+  width: 8px;
+  flex-shrink: 0;
+  border-radius: 0 2px 2px 0;
+  background: repeating-linear-gradient(
+    to bottom,
+    #f0ece2 0px, #f0ece2 1.5px,
+    #ddd8cc 1.5px, #ddd8cc 2px
+  );
+}
+
+/* 占位书 */
+.bk-placeholder { opacity: .38; pointer-events: none; }
+.bk-coming {
+  font-size: 8px; color: rgba(255,255,255,0.45);
+  writing-mode: vertical-rl; letter-spacing: .08em;
+  z-index: 1; flex-shrink: 0;
+}
+
+/* 添加自定义书 */
+.bk-add { opacity: .65; filter: none !important; }
+.bk-add:hover { opacity: 1; transform: translateY(-10px) !important; filter: none !important; }
+.bk-add:active { transform: translateY(-5px) scale(0.97) !important; }
+.bk-add .bk-spine {
+  background: rgba(255,255,255,0.04) !important;
+  border: 1.5px dashed rgba(255,255,255,0.2);
+}
+.bk-add .bk-spine::before { display: none; }
+.bk-add .bk-edge {
+  background: rgba(255,255,255,0.04);
+  border: 1.5px dashed rgba(255,255,255,0.1);
+  border-left: none;
+}
+.bk-add-icon {
+  font-size: 24px; color: rgba(255,255,255,0.5);
+  z-index: 1; writing-mode: horizontal-tb; line-height: 1;
+}
+.bk-add-label {
+  font-size: 9px; color: rgba(255,255,255,0.3);
+  z-index: 1; writing-mode: vertical-rl; letter-spacing: .1em; flex-shrink: 0;
+}
+
+/* 删除按钮 */
+.bk-del {
+  position: absolute; top: -6px; right: -6px;
+  width: 20px; height: 20px;
+  background: rgba(200,40,40,0.9); color: #fff;
+  border-radius: 50%; font-size: 13px; line-height: 20px;
+  text-align: center; z-index: 20; border: none;
+  font-family: sans-serif; font-weight: bold;
+  display: none; box-shadow: 0 2px 6px rgba(0,0,0,0.5);
+  transition: background .15s;
+}
+.bk[data-custom-id]:hover .bk-del { display: block; }
+.bk-del:active { background: rgba(170,15,15,1); }
+
+/* ══ 练字页 ══ */
+#page-practice {
+  align-items:center; gap:14px;
+  background:var(--bg2); padding-bottom:28px;
+  transition:background .3s;
+  overscroll-behavior: contain;   /* #pull-to-refresh 防误触 */
+}
+#page-practice .page-header { background:var(--bg2); }
+
+/* #7 响应式 panel 宽度 */
+#context-strip, #pen-toolbar, #canvas-wrap, #controls {
+  width: var(--panel-w);
+}
+#canvas-wrap {
+  position:relative;
+  aspect-ratio:1/1;
+  height:auto;
+  border-radius:12px;
+  box-shadow:0 4px 24px var(--shadow-d);
+  overflow:hidden; background:var(--bg-canvas);
+  transition:background .3s;
+}
+canvas {
+  position:absolute; top:0; left:0;
+  width:100%; height:100%; touch-action:none;
+}
+#guide-canvas { z-index:1; }
+#write-canvas { z-index:2; }
+
+/* 上下文条 */
+#context-strip {
+  background:var(--bg-card); border-radius:10px;
+  padding:10px 8px; box-shadow:0 2px 10px var(--shadow);
+  display:flex; align-items:center; justify-content:center;
+  gap:2px; overflow:hidden; transition:background .3s;
+}
+.ctx-char {
+  display:inline-flex; align-items:center; justify-content:center;
+  width:32px; height:36px; font-size:20px;
+  color:var(--text2); border-radius:6px; flex-shrink:0; transition:all .2s;
+}
+.ctx-char.done     { opacity:.4; }
+.ctx-char.current  {
+  color:var(--text); font-size:26px; font-weight:bold;
+  background:rgba(128,80,20,0.10);
+  border-bottom:2.5px solid var(--accent-lt);
+  width:38px; height:42px;
+}
+.ctx-char.upcoming { color:var(--text2); opacity:.65; }
+.ctx-ellipsis { color:var(--text3); font-size:13px; padding:0 2px; flex-shrink:0; }
+
+/* 笔型工具栏 */
+#pen-toolbar {
+  background:var(--bg-card); border-radius:10px;
+  padding:6px 10px; box-shadow:0 2px 10px var(--shadow);
+  display:flex; align-items:center; gap:4px;
+  transition:background .3s;
+}
+.pen-group { display:flex; gap:3px; align-items:center; }
+.toolbar-sep { flex:1; }
+.toolbar-div { width:1px; height:18px; background:var(--border); margin:0 3px; }
+.pen-btn {
+  border:none; border-radius:14px;
+  font-size:12px; font-family:inherit;
+  padding:5px 10px; background:transparent; color:var(--text2);
+  transition:all .15s; min-height:36px;
+}
+.pen-btn.active { background:var(--accent); color:#fff; }
+.pen-btn:active { opacity:.7; }
+
+/* #1 #10 size-btn 44px + 选中填色 */
+.size-btn {
+  border:none; border-radius:50%; background:transparent;
+  width:44px; height:44px;
+  display:flex; align-items:center; justify-content:center;
+  transition:all .15s;
+}
+.size-btn.active { background:var(--accent); }
+.size-dot { border-radius:50%; background:var(--text2); display:block; }
+.size-btn.active .size-dot { background:#fff; }
+.size-btn:active { opacity:.7; }
+
+.guide-toggle {
+  border:none; border-radius:14px;
+  font-size:12px; font-family:inherit;
+  padding:5px 9px; background:transparent; color:var(--text2);
+  transition:all .15s; min-height:36px;
+}
+.guide-toggle.off { color:var(--text3); text-decoration:line-through; }
+.guide-toggle:active { opacity:.7; }
+.undo-btn {
+  border:none; border-radius:14px;
+  font-size:16px; background:transparent; color:var(--text2);
+  padding:3px 8px; line-height:1; min-height:36px; min-width:36px;
+  transition:all .15s;
+}
+.undo-btn:active { opacity:.6; }
+
+/* 导航按钮 */
+#controls { display:flex; gap:10px; }
+.ctrl-btn {
+  flex:1; padding:12px 16px; border:none; border-radius:999px;
+  font-size:14px; font-family:inherit;
+  background:var(--bg-card); color:var(--text);
+  box-shadow:0 2px 10px var(--shadow);
+  transition:transform .1s, box-shadow .1s, background .15s, color .3s;
+}
+/* #9 버튼 press 피드백 */
+.ctrl-btn:active { transform:scale(0.96); box-shadow:none; background:rgba(128,80,20,0.12); }
+#btn-next { background:var(--accent); color:#fff; }
+#btn-next:active { background:var(--accent-lt); }
+
+/* ══ 全文页 ══ */
+#page-fulltext { background:var(--bg3); transition:background .3s; }
+#page-fulltext .page-header { background:var(--bg3); }
+#fulltext-body { flex:1; overflow-y:auto; padding:28px 28px 48px; -webkit-overflow-scrolling:touch; }
+#fulltext-content { font-size:22px; line-height:2.2; color:var(--text); letter-spacing:.05em; word-break:break-all; }
+.ft-char { display:inline; cursor:pointer; border-radius:3px; padding:0 1px; transition:background .15s; }
+.ft-char.ft-done    { color:var(--text3); }
+.ft-char.ft-current { color:var(--text); background:rgba(128,80,20,0.15); border-bottom:2px solid var(--accent-lt); }
+.ft-char.ft-upcoming { color:var(--text); }
+.ft-char:active { background:rgba(128,80,20,0.25); }
+/* #12 标点颜色暗模式 */
+.ft-punct { color:var(--text3); pointer-events:none; }
+#ft-progress-bar  { height:3px; background:var(--border); flex-shrink:0; }
+#ft-progress-fill { height:100%; background:linear-gradient(90deg,var(--accent),var(--accent-lt)); transition:width .4s ease; }
+
+/* ══ 完成页 ══ */
+#page-complete {
+  align-items:center; justify-content:center;
+  gap:24px; background:var(--bg2); padding:40px 24px;
+  text-align:center; transition:background .3s;
+}
+.complete-char  { font-size:96px; line-height:1; color:var(--accent); }
+.complete-title { font-size:22px; color:var(--text); letter-spacing:.2em; }
+.complete-sub   { font-size:14px; color:var(--text3); letter-spacing:.1em; }
+.complete-btns  { display:flex; gap:14px; }
+.cmpl-btn {
+  padding:13px 28px; border:none; border-radius:999px;
+  font-size:15px; font-family:inherit;
+  transition:transform .1s; min-height:48px;
+}
+.cmpl-btn:active { transform:scale(0.96); }
+.cmpl-primary   { background:var(--accent); color:#fff; }
+.cmpl-secondary { background:var(--bg-card); color:var(--text); box-shadow:0 2px 10px var(--shadow); }
+
+/* ══ 自定义输入页 ══ */
+#page-custom { background:var(--bg3); transition:background .3s; }
+#page-custom .page-header { background:var(--bg3); }
+#custom-form { flex:1; display:flex; flex-direction:column; gap:16px; padding:24px 20px 40px; overflow-y:auto; }
+.form-label { font-size:13px; color:var(--text3); letter-spacing:.1em; margin-bottom:6px; display:block; }
+.form-input {
+  width:100%; padding:12px 14px; border-radius:10px;
+  border:1px solid var(--border); background:var(--bg-card);
+  color:var(--text); font-size:16px; font-family:inherit;
+  box-shadow:0 1px 6px var(--shadow); outline:none;
+  transition:border-color .2s, background .3s;
+}
+.form-input:focus { border-color:var(--accent-lt); }
+#custom-text-input { min-height:200px; resize:vertical; line-height:1.8; }
+.form-hint { font-size:12px; color:var(--text3); line-height:1.6; }
+.form-submit {
+  padding:14px; border:none; border-radius:999px;
+  background:var(--accent); color:#fff;
+  font-size:16px; font-family:inherit;
+  box-shadow:0 2px 10px var(--shadow);
+  transition:transform .1s; margin-top:8px; min-height:50px;
+}
+.form-submit:active { transform:scale(0.97); }
+</style>
+</head>
+<body>
+
+<!-- 书架 -->
+<div id="page-shelf" class="page active">
+  <div class="page-header">
+    <span style="min-width:44px"></span>
+    <span class="hdr-title">书架</span>
+    <button class="hdr-btn" id="btn-theme">夜</button>
+  </div>
+  <div class="shelf-scene">
+    <div class="shelf-section-label">经典</div>
+    <div class="shelf-unit">
+      <div class="shelf-books">
+        <div class="bk" data-book="xinjing" style="--bh:152px;--bc1:#7a5230">
+          <div class="bk-spine">
+            <div class="bk-band"></div>
+            <span class="bk-title">心经</span>
+            <span class="bk-prog" id="progress-xinjing">0 / 260</span>
+            <div class="bk-band"></div>
+          </div>
+          <div class="bk-edge"></div>
+        </div>
+
+      </div>
+      <div class="shelf-board"></div>
+    </div>
+    <div class="shelf-gap"></div>
+    <div class="shelf-section-label">自定义</div>
+    <div class="shelf-unit">
+      <div class="shelf-books">
+        <div class="bk bk-add" id="btn-add-custom" style="--bh:145px">
+          <div class="bk-spine">
+            <div class="bk-add-icon">+</div>
+            <span class="bk-add-label">自定义</span>
+          </div>
+          <div class="bk-edge"></div>
+        </div>
+        <div id="custom-books-row" style="display:contents"></div>
+      </div>
+      <div class="shelf-board"></div>
+    </div>
+    <div class="shelf-spacer"></div>
+  </div>
+</div>
+
+<!-- 练字 -->
+<div id="page-practice" class="page">
+  <div class="page-header">
+    <button class="hdr-btn" id="btn-back">&#8592;</button>
+    <span class="hdr-title" id="practice-title">心经</span>
+    <button class="hdr-btn" id="btn-fulltext" style="font-size:14px">全文</button>
+  </div>
+
+  <span style="font-size:13px;color:var(--text3)">
+    第 <span id="idx">1</span> / <span id="total">260</span> 字
+  </span>
+
+  <!-- #6 上下文条支持左右滑动切字 -->
+  <div id="context-strip"></div>
+
+  <div id="canvas-wrap">
+    <canvas id="guide-canvas" width="600" height="600"></canvas>
+    <canvas id="write-canvas" width="600" height="600"></canvas>
+  </div>
+
+  <div id="pen-toolbar">
+    <div class="pen-group">
+      <button class="pen-btn active" data-pen="pen">钢笔</button>
+      <button class="pen-btn" data-pen="brush">毛笔</button>
+      <button class="pen-btn" data-pen="pencil">铅笔</button>
+    </div>
+    <div class="toolbar-div"></div>
+    <div class="pen-group">
+      <button class="size-btn active" data-size="sm"><span class="size-dot" style="width:4px;height:4px"></span></button>
+      <button class="size-btn" data-size="md"><span class="size-dot" style="width:7px;height:7px"></span></button>
+      <button class="size-btn" data-size="lg"><span class="size-dot" style="width:11px;height:11px"></span></button>
+    </div>
+    <div class="toolbar-sep"></div>
+    <button class="guide-toggle" id="btn-guide">描红</button>
+    <button class="undo-btn" id="btn-undo">↩</button>
+  </div>
+
+  <div id="controls">
+    <button class="ctrl-btn" id="btn-prev">上一字</button>
+    <button class="ctrl-btn" id="btn-clear">清空</button>
+    <button class="ctrl-btn" id="btn-next">下一字</button>
+  </div>
+</div>
+
+<!-- 全文 -->
+<div id="page-fulltext" class="page">
+  <div class="page-header">
+    <button class="hdr-btn" id="btn-ft-back">&#8592;</button>
+    <span class="hdr-title" id="ft-title">心经</span>
+    <span style="min-width:44px"></span>
+  </div>
+  <div id="ft-progress-bar"><div id="ft-progress-fill" style="width:0%"></div></div>
+  <div id="fulltext-body"><div id="fulltext-content"></div></div>
+</div>
+
+<!-- 完成 -->
+<div id="page-complete" class="page">
+  <div class="complete-char">圆</div>
+  <div class="complete-title" id="complete-title">心经 · 全部完成</div>
+  <div class="complete-sub"  id="complete-sub">260 字，圆满</div>
+  <div class="complete-btns">
+    <button class="cmpl-btn cmpl-secondary" id="btn-restart">再练一遍</button>
+    <button class="cmpl-btn cmpl-primary"   id="btn-cmpl-shelf">返回书架</button>
+  </div>
+</div>
+
+<!-- 自定义输入 -->
+<div id="page-custom" class="page">
+  <div class="page-header">
+    <button class="hdr-btn" id="btn-custom-back">&#8592;</button>
+    <span class="hdr-title">自定义文本</span>
+    <span style="min-width:44px"></span>
+  </div>
+  <div id="custom-form">
+    <div>
+      <label class="form-label" for="custom-name">书名</label>
+      <input class="form-input" id="custom-name" type="text" placeholder="例：唐诗三首" maxlength="10">
+    </div>
+    <div>
+      <label class="form-label" for="custom-text">内容（粘贴或输入）</label>
+      <textarea class="form-input" id="custom-text" placeholder="输入想练习的文字，标点会自动去除…"></textarea>
+    </div>
+    <div class="form-hint">· 标点符号会自动过滤，仅保留汉字</div>
+    <button class="form-submit" id="btn-custom-submit">开始练习</button>
+  </div>
+</div>
+
+<script>
+// ══ 数据 ══
+const PRESET = {
+  xinjing: {
+    title: '心经',
+    fullText: '观自在菩萨，行深般若波罗蜜多时，照见五蕴皆空，度一切苦厄。舍利子，色不异空，空不异色。色即是空，空即是色。受、想、行、识，亦复如是。舍利子，是诸法空相，不生不灭，不垢不净，不增不减。是故空中无色，无受、想、行、识；无眼、耳、鼻、舌、身、意；无色、声、香、味、触、法；无眼界，乃至无意识界；无无明，亦无无明尽，乃至无老死，亦无老死尽；无苦、集、灭、道；无智亦无得。以无所得故，菩提萨埵，依般若波罗蜜多故，心无挂碍。无挂碍故，无有恐怖，远离颠倒梦想，究竟涅槃。三世诸佛，依般若波罗蜜多故，得阿耨多罗三藐三菩提。故知般若波罗蜜多，是大神咒，是大明咒，是无上咒，是无等等咒，能除一切苦，真实不虚。故说般若波罗蜜多咒，即说咒曰：揭谛揭谛，波罗揭谛，波罗僧揭谛，菩提萨婆诃。',
+    chars: '观自在菩萨行深般若波罗蜜多时照见五蕴皆空度一切苦厄舍利子色不异空空不异色色即是空空即是色受想行识亦复如是舍利子是诸法空相不生不灭不垢不净不增不减是故空中无色无受想行识无眼耳鼻舌身意无色声香味触法无眼界乃至无意识界无无明亦无无明尽乃至无老死亦无老死尽无苦集灭道无智亦无得以无所得故菩提萨埵依般若波罗蜜多故心无挂碍无挂碍故无有恐怖远离颠倒梦想究竟涅槃三世诸佛依般若波罗蜜多故得阿耨多罗三藐三菩提故知般若波罗蜜多是大神咒是大明咒是无上咒是无等等咒能除一切苦真实不虚故说般若波罗蜜多咒即说咒曰揭谛揭谛波罗揭谛波罗僧揭谛菩提萨婆诃'.split('')
+  }
+};
+const CUSTOM_COLORS = [
+  '#7a3535',
+  '#2a5540',
+  '#2a3858',
+  '#5a4020',
+  '#483060',
+];
+
+function isHanzi(ch) {
+  const c = ch.codePointAt(0);
+  return (c >= 0x4E00 && c <= 0x9FFF) || (c >= 0x3400 && c <= 0x4DBF) || (c >= 0x20000 && c <= 0x2A6DF);
+}
+function stripPunct(t) { return [...t].filter(isHanzi); }
+
+// ══ 主题 ══
+let dark = localStorage.getItem('theme') === 'dark';
+function applyTheme() {
+  document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+  document.getElementById('btn-theme').textContent = dark ? '昼' : '夜';
+  document.getElementById('meta-theme').content = dark ? '#1a1710' : '#5a3e28';
+  if (chars.length) drawGuide(chars[current]);
+}
+document.getElementById('btn-theme').addEventListener('click', () => {
+  dark = !dark;
+  localStorage.setItem('theme', dark ? 'dark' : 'light');
+  applyTheme();
+});
+
+// ══ 进度 ══
+function loadProg(id)      { const v = localStorage.getItem('p_' + id); return v ? +v : 0; }
+function saveProg(id, idx) { localStorage.setItem('p_' + id, idx); }
+function refreshShelfProgress() {
+  Object.keys(PRESET).forEach(id => {
+    const el = document.getElementById('progress-' + id);
+    if (el) {
+      const p = loadProg(id);
+      const total = PRESET[id].chars.length;
+      el.textContent = p >= total ? `完成 ${total}` : `${p} / ${total}`;
+    }
+  });
+  loadCustomBooks().forEach(b => {
+    const el = document.getElementById('progress-' + b.id);
+    if (el) {
+      const p = loadProg(b.id);
+      el.textContent = p >= b.chars.length ? `完成 ${b.chars.length}` : `${p} / ${b.chars.length}`;
+    }
+  });
+}
+
+// ══ 自定义书 ══
+function loadCustomBooks() { try { return JSON.parse(localStorage.getItem('custom_books')||'[]'); } catch { return []; } }
+function saveCustomBooks(arr) { localStorage.setItem('custom_books', JSON.stringify(arr)); }
+
+function renderCustomShelf() {
+  const row = document.getElementById('custom-books-row');
+  row.innerHTML = '';
+  const HEIGHTS = [148, 140, 155, 135, 152];
+  loadCustomBooks().forEach((b, i) => {
+    const div = document.createElement('div');
+    div.className = 'bk';
+    div.dataset.customId = b.id;
+    div.style.cssText = `--bh:${HEIGHTS[i % HEIGHTS.length]}px;--bc1:${CUSTOM_COLORS[i % CUSTOM_COLORS.length]}`;
+    div.innerHTML = `
+      <div class="bk-spine">
+        <div class="bk-band"></div>
+        <span class="bk-title">${b.title}</span>
+        <span class="bk-prog" id="progress-${b.id}">0 / ${b.chars.length}</span>
+        <div class="bk-band"></div>
+      </div>
+      <div class="bk-edge"></div>
+      <button class="bk-del" data-del="${b.id}" title="删除">×</button>`;
+    div.addEventListener('click', e => {
+      if (e.target.dataset.del) return;
+      openBook(b.id, b);
+    });
+    div.querySelector('.bk-del').addEventListener('click', e => {
+      e.stopPropagation();
+      const updated = loadCustomBooks().filter(x => x.id !== b.id);
+      saveCustomBooks(updated);
+      renderCustomShelf();
+      refreshShelfProgress();
+    });
+    row.appendChild(div);
+  });
+}
+
+// ══ 页面切换 ══
+function showPage(id) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+// ══ 练字状态 ══
+let currentId   = null;
+let currentBook = null;
+let chars = [];
+let current = 0;
+let guideVisible = true;
+
+// ══ Guide canvas ══
+const gCanvas = document.getElementById('guide-canvas');
+const gCtx    = gCanvas.getContext('2d');
+
+function drawGuide(char) {
+  const s = gCanvas.width;
+  gCtx.clearRect(0, 0, s, s);
+  gCtx.fillStyle = dark ? '#1e1c16' : '#fffef9';
+  gCtx.fillRect(0, 0, s, s);
+  if (!guideVisible) return;
+
+  gCtx.strokeStyle = dark ? 'rgba(200,160,80,0.20)' : 'rgba(200,160,120,0.35)';
+  gCtx.lineWidth = 1.5; gCtx.setLineDash([8,8]);
+  gCtx.beginPath();
+  gCtx.moveTo(s/2,0); gCtx.lineTo(s/2,s);
+  gCtx.moveTo(0,s/2); gCtx.lineTo(s,s/2);
+  gCtx.moveTo(0,0);   gCtx.lineTo(s,s);
+  gCtx.moveTo(s,0);   gCtx.lineTo(0,s);
+  gCtx.stroke(); gCtx.setLineDash([]);
+
+  gCtx.strokeStyle = dark ? 'rgba(200,160,80,0.30)' : 'rgba(180,140,100,0.4)';
+  gCtx.lineWidth = 3;
+  gCtx.strokeRect(4,4,s-8,s-8);
+
+  gCtx.font = `${s*.78}px KaiTi,STKaiti,楷体,serif`;
+  gCtx.fillStyle = dark ? 'rgba(200,140,60,0.18)' : 'rgba(160,100,60,0.18)';
+  gCtx.textAlign = 'center'; gCtx.textBaseline = 'middle';
+  gCtx.fillText(char, s/2, s/2);
+}
+
+document.getElementById('btn-guide').addEventListener('click', () => {
+  guideVisible = !guideVisible;
+  document.getElementById('btn-guide').classList.toggle('off', !guideVisible);
+  drawGuide(chars[current]);
+});
+
+// ══ Write canvas ══
+const wCanvas = document.getElementById('write-canvas');
+const wCtx    = wCanvas.getContext('2d');
+wCtx.lineCap = 'round'; wCtx.lineJoin = 'round';
+
+let penType = 'pen', penSize = 'sm';
+const SZ = { sm:.6, md:1, lg:2 };
+
+document.querySelectorAll('.pen-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    penType = btn.dataset.pen;
+    document.querySelectorAll('.pen-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  });
+});
+document.querySelectorAll('.size-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    penSize = btn.dataset.size;
+    document.querySelectorAll('.size-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  });
+});
+
+// 撤销
+const undoStack = [];
+function pushUndo() {
+  undoStack.push(wCtx.getImageData(0,0,wCanvas.width,wCanvas.height));
+  if (undoStack.length > 20) undoStack.shift();
+}
+document.getElementById('btn-undo').addEventListener('click', () => {
+  if (undoStack.length) wCtx.putImageData(undoStack.pop(), 0, 0);
+});
+
+// 书写
+let drawing = false, lastX = 0, lastY = 0;
+function getPos(e) {
+  const r = wCanvas.getBoundingClientRect();
+  const sx = wCanvas.width/r.width, sy = wCanvas.height/r.height;
+  const s = e.touches ? e.touches[0] : e;
+  return { x:(s.clientX-r.left)*sx, y:(s.clientY-r.top)*sy, p:e.pressure>0?e.pressure:0.5 };
+}
+function applyStyle(pos, dist) {
+  const m = SZ[penSize];
+  wCtx.globalAlpha = 1; wCtx.shadowBlur = 0; wCtx.shadowColor = 'transparent';
+  if (penType==='pen') {
+    wCtx.lineWidth = (1.5+pos.p*2)*m;
+    wCtx.strokeStyle = dark ? '#e8d8b0' : '#0d0500';
+    wCtx.globalAlpha = 0.92;
+  } else if (penType==='brush') {
+    const spd = Math.min(dist,50), r = 1-spd/50;
+    wCtx.lineWidth = ((3+pos.p*12)*(0.25+0.75*r))*m;
+    wCtx.strokeStyle = dark ? '#f0e0c0' : '#050200';
+    wCtx.shadowBlur  = wCtx.lineWidth*.18;
+    wCtx.shadowColor = dark ? 'rgba(255,220,150,0.3)' : 'rgba(0,0,0,0.35)';
+  } else {
+    wCtx.lineWidth = (1.2+pos.p*1.5)*m;
+    wCtx.strokeStyle = dark ? '#b0a090' : '#3a3228';
+    wCtx.globalAlpha = 0.55;
+  }
+}
+function startDraw(e) {
+  e.preventDefault(); pushUndo(); drawing = true;
+  const pos = getPos(e); lastX=pos.x; lastY=pos.y;
+  wCtx.beginPath(); wCtx.moveTo(pos.x,pos.y);
+}
+function doDraw(e) {
+  e.preventDefault(); if (!drawing) return;
+  const pos = getPos(e), dist = Math.hypot(pos.x-lastX,pos.y-lastY);
+  if (dist<1) return;
+  applyStyle(pos, dist);
+  wCtx.lineTo(pos.x,pos.y); wCtx.stroke();
+  if (penType==='pencil') {
+    wCtx.globalAlpha=.2; wCtx.lineWidth=Math.max(1,wCtx.lineWidth*.5);
+    wCtx.beginPath(); wCtx.moveTo(lastX+1,lastY+1); wCtx.lineTo(pos.x+1,pos.y+1); wCtx.stroke();
+  }
+  wCtx.beginPath(); wCtx.moveTo(pos.x,pos.y); lastX=pos.x; lastY=pos.y;
+}
+function endDraw(e) { e.preventDefault(); drawing=false; }
+
+wCanvas.addEventListener('pointerdown',   startDraw, {passive:false});
+wCanvas.addEventListener('pointermove',   doDraw,    {passive:false});
+wCanvas.addEventListener('pointerup',     endDraw,   {passive:false});
+wCanvas.addEventListener('pointercancel', endDraw,   {passive:false});
+wCanvas.addEventListener('touchstart',    startDraw, {passive:false});
+wCanvas.addEventListener('touchmove',     doDraw,    {passive:false});
+wCanvas.addEventListener('touchend',      endDraw,   {passive:false});
+
+// #6 上下文条左右滑动切字
+let swipeX = 0;
+const ctxStrip = document.getElementById('context-strip');
+ctxStrip.addEventListener('touchstart', e => { swipeX = e.touches[0].clientX; }, {passive:true});
+ctxStrip.addEventListener('touchend', e => {
+  const dx = e.changedTouches[0].clientX - swipeX;
+  if (Math.abs(dx) > 50) dx > 0 ? goPrev() : goNext();
+}, {passive:true});
+
+// ══ 上下文条 ══
+function updateContext() {
+  const B=4, A=4;
+  let h = '';
+  if (current>B) h += `<span class="ctx-ellipsis">…</span>`;
+  const s=Math.max(0,current-B), e=Math.min(chars.length-1,current+A);
+  for (let i=s;i<=e;i++) {
+    const cls = i<current?'done': i===current?'current':'upcoming';
+    h += `<span class="ctx-char ${cls}">${chars[i]}</span>`;
+  }
+  if (current+A<chars.length-1) h += `<span class="ctx-ellipsis">…</span>`;
+  ctxStrip.innerHTML = h;
+}
+
+function refreshPractice() {
+  document.getElementById('idx').textContent   = current+1;
+  document.getElementById('total').textContent = chars.length;
+  wCtx.clearRect(0,0,wCanvas.width,wCanvas.height);
+  undoStack.length = 0;
+  drawGuide(chars[current]);
+  updateContext();
+}
+
+// ══ 打开书 ══
+function openBook(id, bookData) {
+  currentId = id; currentBook = bookData;
+  chars = bookData.chars;
+  current = loadProg(id);
+  if (current >= chars.length) current = 0;
+  document.getElementById('practice-title').textContent = bookData.title;
+  refreshPractice();
+  showPage('page-practice');
+}
+
+// ══ 全文页 ══
+function renderFullText() {
+  document.getElementById('ft-title').textContent = currentBook.title;
+  const pct = chars.length ? (current/chars.length*100).toFixed(1) : 0;
+  document.getElementById('ft-progress-fill').style.width = pct+'%';
+  const src = currentBook.fullText || chars.join('');
+  let idx=0, h='';
+  for (const ch of src) {
+    if (isHanzi(ch)) {
+      const i=idx++;
+      const cls = i<current?'ft-done': i===current?'ft-current':'ft-upcoming';
+      h += `<span class="ft-char ${cls}" data-i="${i}">${ch}</span>`;
+    } else {
+      h += `<span class="ft-punct">${ch}</span>`;
+    }
+  }
+  document.getElementById('fulltext-content').innerHTML = h;
+  const cur = document.querySelector('.ft-current');
+  if (cur) setTimeout(()=>cur.scrollIntoView({behavior:'smooth',block:'center'}), 100);
+  document.querySelectorAll('.ft-char').forEach(el => {
+    el.addEventListener('click', () => {
+      current = +el.dataset.i;
+      saveProg(currentId, current);
+      refreshShelfProgress();
+      refreshPractice();
+      showPage('page-practice');
+    });
+  });
+}
+
+// ══ 完成页 ══
+function showComplete() {
+  document.getElementById('complete-title').textContent = `《${currentBook.title}》· 全部完成`;
+  document.getElementById('complete-sub').textContent   = `${chars.length} 字，圆满`;
+  showPage('page-complete');
+}
+// #8 再练一遍：保存进度=0，重新开始
+document.getElementById('btn-restart').addEventListener('click', () => {
+  current = 0;
+  saveProg(currentId, 0);
+  refreshShelfProgress();
+  refreshPractice();
+  showPage('page-practice');
+});
+// #8 返回书架：保存完成状态（chars.length），不清零
+document.getElementById('btn-cmpl-shelf').addEventListener('click', () => {
+  saveProg(currentId, chars.length);
+  refreshShelfProgress();
+  showPage('page-shelf');
+});
+
+// ══ 按钮 ══
+document.getElementById('btn-clear').addEventListener('click', () => {
+  pushUndo(); wCtx.clearRect(0,0,wCanvas.width,wCanvas.height);
+});
+
+function goPrev() {
+  if (current===0) return;
+  current--;
+  saveProg(currentId, current);
+  refreshShelfProgress();
+  refreshPractice();
+}
+function goNext() {
+  if (current >= chars.length-1) { saveProg(currentId, chars.length); refreshShelfProgress(); showComplete(); return; }
+  current++;
+  saveProg(currentId, current);
+  refreshShelfProgress();
+  refreshPractice();
+}
+document.getElementById('btn-prev').addEventListener('click', goPrev);
+document.getElementById('btn-next').addEventListener('click', goNext);
+
+document.getElementById('btn-back').addEventListener('click', () => {
+  saveProg(currentId, current);
+  refreshShelfProgress();
+  showPage('page-shelf');
+});
+document.getElementById('btn-fulltext').addEventListener('click', ()=>{ renderFullText(); showPage('page-fulltext'); });
+document.getElementById('btn-ft-back').addEventListener('click', ()=> showPage('page-practice'));
+
+document.querySelectorAll('.bk[data-book]').forEach(el => {
+  el.addEventListener('click', ()=> openBook(el.dataset.book, PRESET[el.dataset.book]));
+});
+
+document.getElementById('btn-add-custom').addEventListener('click', ()=> showPage('page-custom'));
+document.getElementById('btn-custom-back').addEventListener('click', ()=> showPage('page-shelf'));
+document.getElementById('btn-custom-submit').addEventListener('click', () => {
+  const title = document.getElementById('custom-name').value.trim() || '自定义';
+  const raw   = document.getElementById('custom-text').value.trim();
+  if (!raw) return;
+  const charArr = stripPunct(raw);
+  if (!charArr.length) return;
+  const id = 'c_' + Date.now();
+  const book = { id, title, chars:charArr, fullText:null };
+  const all = loadCustomBooks(); all.push(book); saveCustomBooks(all);
+  document.getElementById('custom-name').value = '';
+  document.getElementById('custom-text').value = '';
+  renderCustomShelf();
+  refreshShelfProgress();
+  openBook(id, book);
+});
+
+// ══ PWA ══
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(()=>{});
+
+// ══ 初始化 ══
+applyTheme();
+renderCustomShelf();
+refreshShelfProgress();
+</script>
+</body>
+</html>
