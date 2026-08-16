@@ -512,6 +512,17 @@ canvas {
 .ctx-char[data-nav] { cursor: pointer; }
 .ctx-char[data-nav]:active { background: rgba(128,80,20,0.15); }
 
+/* 上下文条中的标点 */
+.ctx-punct {
+  font-size: 13px;
+  color: var(--text3);
+  opacity: 0.55;
+  flex-shrink: 0;
+  align-self: flex-end;
+  padding-bottom: 5px;
+  line-height: 1;
+}
+
 /* ══ 小屏适配（iPhone 6S / SE 1st gen） ══ */
 @media (max-height: 680px) {
   #page-practice {
@@ -780,6 +791,16 @@ let currentBook = null;
 let chars = [];
 let current = 0;
 let guideVisible = true;
+let charMap = null; // charMap[i] = 该汉字在 fullText 中的下标
+
+function buildCharMap() {
+  if (!currentBook || !currentBook.fullText) { charMap = null; return; }
+  charMap = [];
+  let ci = 0;
+  for (let fi = 0; fi < currentBook.fullText.length; fi++) {
+    if (isHanzi(currentBook.fullText[fi])) charMap[ci++] = fi;
+  }
+}
 
 // ══ Guide canvas ══
 const gCanvas = document.getElementById('guide-canvas');
@@ -946,15 +967,37 @@ ctxStrip.addEventListener('touchend', e => {
 // ══ 上下文条 ══
 function updateContext() {
   const B=4, A=4;
-  let h = '';
-  if (current>B) h += `<span class="ctx-ellipsis">…</span>`;
   const s=Math.max(0,current-B), e=Math.min(chars.length-1,current+A);
-  for (let i=s;i<=e;i++) {
-    const cls = i<current?'done': i===current?'current':'upcoming';
-    const nav = i !== current ? ` data-nav="${i}"` : '';
-    h += `<span class="ctx-char ${cls}"${nav}>${chars[i]}</span>`;
+  let h = '';
+
+  if (charMap && currentBook.fullText) {
+    // 有原文：含标点一起显示
+    const ftStart = charMap[s], ftEnd = charMap[e];
+    if (s > 0) h += `<span class="ctx-ellipsis">…</span>`;
+    let ci = s;
+    for (let fi = ftStart; fi <= ftEnd; fi++) {
+      const ch = currentBook.fullText[fi];
+      if (isHanzi(ch)) {
+        const i = ci++;
+        const cls = i<current?'done': i===current?'current':'upcoming';
+        const nav = i !== current ? ` data-nav="${i}"` : '';
+        h += `<span class="ctx-char ${cls}"${nav}>${ch}</span>`;
+      } else {
+        h += `<span class="ctx-punct">${ch}</span>`;
+      }
+    }
+    if (current+A < chars.length-1) h += `<span class="ctx-ellipsis">…</span>`;
+  } else {
+    // 无原文（自定义书）：退回纯汉字模式
+    if (current>B) h += `<span class="ctx-ellipsis">…</span>`;
+    for (let i=s;i<=e;i++) {
+      const cls = i<current?'done': i===current?'current':'upcoming';
+      const nav = i !== current ? ` data-nav="${i}"` : '';
+      h += `<span class="ctx-char ${cls}"${nav}>${chars[i]}</span>`;
+    }
+    if (current+A<chars.length-1) h += `<span class="ctx-ellipsis">…</span>`;
   }
-  if (current+A<chars.length-1) h += `<span class="ctx-ellipsis">…</span>`;
+
   ctxStrip.innerHTML = h;
 }
 
@@ -989,6 +1032,7 @@ function openBook(id, bookData) {
   chars = bookData.chars;
   current = loadProg(id);
   if (current >= chars.length) current = 0;
+  buildCharMap();
   document.getElementById('practice-title').textContent = bookData.title;
   refreshPractice();
   showPracticeHints();
