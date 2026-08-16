@@ -293,19 +293,22 @@ button, [role="button"] { touch-action: manipulation; cursor: pointer; }
   z-index: 1; writing-mode: vertical-rl; letter-spacing: .1em; flex-shrink: 0;
 }
 
-/* 删除按钮 */
-.bk-del {
-  position: absolute; top: -6px; right: -6px;
+/* 删除 / 编辑按钮 */
+.bk-del, .bk-edit {
+  position: absolute; right: -6px;
   width: 20px; height: 20px;
-  background: rgba(200,40,40,0.9); color: #fff;
-  border-radius: 50%; font-size: 13px; line-height: 20px;
+  border-radius: 50%; font-size: 11px; line-height: 20px;
   text-align: center; z-index: 20; border: none;
   font-family: sans-serif; font-weight: bold;
   display: none; box-shadow: 0 2px 6px rgba(0,0,0,0.5);
-  transition: background .15s;
+  transition: background .15s; color: #fff;
 }
-.bk[data-custom-id]:hover .bk-del { display: block; }
-.bk-del:active { background: rgba(170,15,15,1); }
+.bk-del { top: -6px; background: rgba(200,40,40,0.9); font-size: 13px; }
+.bk-edit { bottom: -6px; background: rgba(40,120,200,0.9); }
+.bk[data-custom-id]:hover .bk-del,
+.bk[data-custom-id]:hover .bk-edit { display: block; }
+.bk-del:active  { background: rgba(170,15,15,1); }
+.bk-edit:active { background: rgba(20,80,160,1); }
 
 /* ══ 练字页 ══ */
 #page-practice {
@@ -667,7 +670,7 @@ canvas {
 <div id="page-custom" class="page">
   <div class="page-header">
     <button class="hdr-btn" id="btn-custom-back">&#8592;</button>
-    <span class="hdr-title">自定义文本</span>
+    <span class="hdr-title" id="custom-page-title">自定义文本</span>
     <span style="min-width:44px"></span>
   </div>
   <div id="custom-form">
@@ -763,9 +766,10 @@ function renderCustomShelf() {
         <div class="bk-band"></div>
       </div>
       <div class="bk-edge"></div>
-      <button class="bk-del" data-del="${b.id}" title="删除">×</button>`;
+      <button class="bk-del"  data-del="${b.id}"  title="删除">×</button>
+      <button class="bk-edit" data-edit="${b.id}" title="编辑">✎</button>`;
     div.addEventListener('click', e => {
-      if (e.target.dataset.del) return;
+      if (e.target.dataset.del || e.target.dataset.edit) return;
       openBook(b.id, b);
     });
     div.querySelector('.bk-del').addEventListener('click', e => {
@@ -774,6 +778,10 @@ function renderCustomShelf() {
       saveCustomBooks(updated);
       renderCustomShelf();
       refreshShelfProgress();
+    });
+    div.querySelector('.bk-edit').addEventListener('click', e => {
+      e.stopPropagation();
+      openEditCustom(b);
     });
     row.appendChild(div);
   });
@@ -1124,22 +1132,62 @@ document.querySelectorAll('.bk[data-book]').forEach(el => {
   el.addEventListener('click', ()=> openBook(el.dataset.book, PRESET[el.dataset.book]));
 });
 
-document.getElementById('btn-add-custom').addEventListener('click', ()=> showPage('page-custom'));
-document.getElementById('btn-custom-back').addEventListener('click', ()=> showPage('page-shelf'));
+let editingId = null; // 非 null 时表示编辑模式
+
+function openAddCustom() {
+  editingId = null;
+  document.getElementById('custom-name').value = '';
+  document.getElementById('custom-text').value = '';
+  document.getElementById('custom-page-title').textContent = '自定义文本';
+  document.getElementById('btn-custom-submit').textContent = '开始练习';
+  showPage('page-custom');
+}
+function openEditCustom(b) {
+  editingId = b.id;
+  document.getElementById('custom-name').value = b.title;
+  document.getElementById('custom-text').value = b.fullText || b.chars.join('');
+  document.getElementById('custom-page-title').textContent = '编辑文本';
+  document.getElementById('btn-custom-submit').textContent = '保存修改';
+  showPage('page-custom');
+}
+
+document.getElementById('btn-add-custom').addEventListener('click', openAddCustom);
+document.getElementById('btn-custom-back').addEventListener('click', () => {
+  editingId = null;
+  showPage('page-shelf');
+});
 document.getElementById('btn-custom-submit').addEventListener('click', () => {
   const title = document.getElementById('custom-name').value.trim() || '自定义';
   const raw   = document.getElementById('custom-text').value.trim();
   if (!raw) return;
   const charArr = stripPunct(raw);
   if (!charArr.length) return;
-  const id = 'c_' + Date.now();
-  const book = { id, title, chars:charArr, fullText:raw };
-  const all = loadCustomBooks(); all.push(book); saveCustomBooks(all);
-  document.getElementById('custom-name').value = '';
-  document.getElementById('custom-text').value = '';
-  renderCustomShelf();
-  refreshShelfProgress();
-  openBook(id, book);
+
+  if (editingId) {
+    // 编辑模式：更新已有书，进度保留（上限调整到新长度）
+    const all = loadCustomBooks().map(b => {
+      if (b.id !== editingId) return b;
+      return { ...b, title, chars: charArr, fullText: raw };
+    });
+    saveCustomBooks(all);
+    const prog = Math.min(loadProg(editingId), charArr.length);
+    saveProg(editingId, prog);
+    renderCustomShelf();
+    refreshShelfProgress();
+    const updated = all.find(b => b.id === editingId);
+    editingId = null;
+    openBook(updated.id, updated);
+  } else {
+    // 新建模式
+    const id = 'c_' + Date.now();
+    const book = { id, title, chars: charArr, fullText: raw };
+    const all = loadCustomBooks(); all.push(book); saveCustomBooks(all);
+    document.getElementById('custom-name').value = '';
+    document.getElementById('custom-text').value = '';
+    renderCustomShelf();
+    refreshShelfProgress();
+    openBook(id, book);
+  }
 });
 
 // ══ PWA ══
