@@ -553,6 +553,50 @@ canvas {
   line-height: 1;
 }
 
+/* ══ 页脚 ══ */
+.site-footer {
+  display: flex; justify-content: center; gap: 28px; align-items: center;
+  padding: 20px 0 max(env(safe-area-inset-bottom), 28px);
+}
+.footer-btn {
+  display: flex; flex-direction: column; align-items: center; gap: 5px;
+  background: none; border: none; cursor: pointer; padding: 8px;
+  color: rgba(200,160,80,0.4); text-decoration: none; font-family: inherit;
+  transition: color .3s cubic-bezier(0.32,0.72,0,1);
+  -webkit-tap-highlight-color: transparent;
+  min-width: 44px; min-height: 44px; justify-content: center;
+}
+.footer-btn:hover, .footer-btn:active { color: rgba(200,160,80,0.88); }
+.footer-btn svg { width: 20px; height: 20px; fill: currentColor; }
+.footer-btn-label { font-size: 12px; letter-spacing: .2em; color: inherit; }
+
+/* QR 弹窗 */
+#qr-modal {
+  position: fixed; inset: 0; z-index: 100;
+  background: rgba(4,2,1,0.92);
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0; pointer-events: none;
+  transition: opacity .3s cubic-bezier(0.32,0.72,0,1);
+}
+#qr-modal.open { opacity: 1; pointer-events: all; }
+.qr-box {
+  background: #110900; border: 1px solid #5a3820; border-radius: 12px;
+  padding: 20px 28px 24px; display: flex; flex-direction: column;
+  align-items: center; gap: 12px; max-width: 260px; width: 90%;
+  transform: scale(0.94) translateY(8px);
+  transition: transform .35s cubic-bezier(0.32,0.72,0,1);
+}
+#qr-modal.open .qr-box { transform: scale(1) translateY(0); }
+.qr-close-row { width: 100%; display: flex; justify-content: flex-end; }
+.btn-qr-close {
+  background: none; border: none; color: #c09040; font-size: 22px;
+  cursor: pointer; line-height: 1;
+  min-width: 44px; min-height: 44px; display: flex; align-items: center; justify-content: flex-end;
+}
+.qr-title { font-size: 17px; color: #d4a84b; letter-spacing: .4em; margin-top: -4px; }
+.qr-img { width: 180px; height: 180px; object-fit: contain; border-radius: 6px; display: block; }
+.qr-sub { font-size: 14px; color: #b08030; letter-spacing: .25em; }
+
 /* ══ 小屏适配（iPhone 6S / SE 1st gen） ══ */
 @media (max-height: 680px) {
   #page-practice {
@@ -620,6 +664,29 @@ canvas {
       <div class="shelf-board"></div>
     </div>
     <div class="shelf-spacer"></div>
+    <div class="site-footer">
+      <a href="https://github.com/mengbingchen0214" target="_blank" rel="noopener"
+         class="footer-btn" aria-label="GitHub 主页">
+        <svg viewBox="0 0 24 24"><path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/></svg>
+        <span class="footer-btn-label">GitHub</span>
+      </a>
+      <button class="footer-btn btn-open-qr" aria-label="赞赏支持">
+        <svg viewBox="0 0 24 24"><path d="M12 21.593c-.425-.052-9.593-6.016-9.593-11.777C2.407 6.022 5.01 3.5 8.181 3.5c1.868 0 3.515.922 4.463 2.308C13.592 4.422 15.24 3.5 17.107 3.5c3.171 0 5.774 2.522 5.774 6.316 0 5.761-9.168 11.725-9.593 11.777H12z"/></svg>
+        <span class="footer-btn-label">赞赏支持</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- QR 弹窗 -->
+<div id="qr-modal" role="dialog" aria-modal="true" aria-label="赞赏支持">
+  <div class="qr-box">
+    <div class="qr-close-row">
+      <button class="btn-qr-close" id="btn-qr-close" aria-label="关闭">×</button>
+    </div>
+    <div class="qr-title">赞赏支持</div>
+    <img class="qr-img" src="shoukuanma.JPG" alt="收款码">
+    <div class="qr-sub">感恩一切护持</div>
   </div>
 </div>
 
@@ -1247,6 +1314,14 @@ document.getElementById('btn-custom-submit').addEventListener('click', () => {
     openBook(id, book);
   }
 });
+
+// ══ QR 弹窗 ══
+const qrModal = document.getElementById('qr-modal');
+document.querySelectorAll('.btn-open-qr').forEach(btn =>
+  btn.addEventListener('click', () => qrModal.classList.add('open'))
+);
+document.getElementById('btn-qr-close').addEventListener('click', () => qrModal.classList.remove('open'));
+qrModal.addEventListener('click', e => { if (e.target === qrModal) qrModal.classList.remove('open'); });
 
 // ══ PWA ══
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(()=>{});
