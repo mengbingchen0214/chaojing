@@ -1133,7 +1133,7 @@ document.getElementById('btn-custom-submit').addEventListener('click', () => {
   const charArr = stripPunct(raw);
   if (!charArr.length) return;
   const id = 'c_' + Date.now();
-  const book = { id, title, chars:charArr, fullText:null };
+  const book = { id, title, chars:charArr, fullText:raw };
   const all = loadCustomBooks(); all.push(book); saveCustomBooks(all);
   document.getElementById('custom-name').value = '';
   document.getElementById('custom-text').value = '';
