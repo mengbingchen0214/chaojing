@@ -477,6 +477,37 @@ canvas {
 }
 .form-submit:active { transform:scale(0.97); }
 
+/* ══ 画布轻触引导提示 ══ */
+#canvas-hint {
+  position: absolute; inset: 0; z-index: 10;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 10px;
+  background: rgba(0,0,0,0.38);
+  border-radius: 12px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity .4s;
+}
+#canvas-hint.show { opacity: 1; pointer-events: auto; }
+.hint-icon {
+  font-size: 40px; line-height: 1;
+  animation: hintPulse 1.4s ease-in-out infinite;
+}
+.hint-text {
+  font-size: 14px; color: rgba(255,255,255,0.92);
+  letter-spacing: .15em; text-align: center;
+  font-family: KaiTi, STKaiti, 楷体, serif;
+}
+.hint-sub {
+  font-size: 11px; color: rgba(255,255,255,0.55);
+  letter-spacing: .1em;
+}
+@keyframes hintPulse {
+  0%, 100% { transform: scale(1);   opacity: .7; }
+  50%       { transform: scale(1.1); opacity: 1;  }
+}
+
 /* ══ 上下文条字符可点击导航 ══ */
 .ctx-char[data-nav] { cursor: pointer; }
 .ctx-char[data-nav]:active { background: rgba(128,80,20,0.15); }
@@ -568,6 +599,11 @@ canvas {
   <div id="canvas-wrap">
     <canvas id="guide-canvas" width="600" height="600"></canvas>
     <canvas id="write-canvas" width="600" height="600"></canvas>
+    <div id="canvas-hint">
+      <div class="hint-icon">👆</div>
+      <div class="hint-text">写完后轻触画布</div>
+      <div class="hint-sub">即可跳到下一字</div>
+    </div>
   </div>
 
   <div id="pen-toolbar">
@@ -844,6 +880,7 @@ function applyStyle(pos, dist) {
 }
 function startDraw(e) {
   if (drawing) return;  // 防止 pointer+touch 双重触发
+  dismissHint();
   e.preventDefault(); pushUndo(); drawing = true;
   tapMoved = false; tapStartTime = Date.now();
   const pos = getPos(e); lastX=pos.x; lastY=pos.y;
@@ -872,6 +909,22 @@ function endDraw(e) {
     goNext();
   }
 }
+
+// ══ 画布轻触引导（仅首次） ══
+const canvasHint = document.getElementById('canvas-hint');
+let hintTimer = null;
+function showCanvasHint() {
+  if (localStorage.getItem('hint_tap_seen')) return;
+  canvasHint.classList.add('show');
+  hintTimer = setTimeout(dismissHint, 3500);
+}
+function dismissHint() {
+  clearTimeout(hintTimer);
+  canvasHint.classList.remove('show');
+  localStorage.setItem('hint_tap_seen', '1');
+}
+canvasHint.addEventListener('pointerdown', dismissHint);
+canvasHint.addEventListener('touchstart', dismissHint, {passive:true});
 
 wCanvas.addEventListener('pointerdown',   startDraw, {passive:false});
 wCanvas.addEventListener('pointermove',   doDraw,    {passive:false});
@@ -925,6 +978,11 @@ function refreshPractice() {
   updateContext();
 }
 
+function showPracticeHints() {
+  // 第一次打开练字页时，延迟 1s 显示引导
+  setTimeout(showCanvasHint, 1000);
+}
+
 // ══ 打开书 ══
 function openBook(id, bookData) {
   currentId = id; currentBook = bookData;
@@ -933,6 +991,7 @@ function openBook(id, bookData) {
   if (current >= chars.length) current = 0;
   document.getElementById('practice-title').textContent = bookData.title;
   refreshPractice();
+  showPracticeHints();
   showPage('page-practice');
 }
 
