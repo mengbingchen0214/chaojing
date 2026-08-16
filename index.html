@@ -686,7 +686,6 @@ canvas {
       <label class="form-label" for="custom-text">内容（粘贴或输入）</label>
       <textarea class="form-input" id="custom-text" placeholder="输入想练习的文字，标点会自动去除…"></textarea>
     </div>
-    <div class="form-hint">· 标点符号会自动过滤，仅保留汉字</div>
     <button class="form-submit" id="btn-custom-submit">开始练习</button>
   </div>
 </div>
@@ -1187,11 +1186,10 @@ document.getElementById('btn-custom-submit').addEventListener('click', () => {
     saveCustomBooks(all);
     const prog = Math.min(loadProg(editingId), charArr.length);
     saveProg(editingId, prog);
+    editingId = null;
     renderCustomShelf();
     refreshShelfProgress();
-    const updated = all.find(b => b.id === editingId);
-    editingId = null;
-    openBook(updated.id, updated);
+    showPage('page-shelf');
   } else {
     // 新建模式
     const id = 'c_' + Date.now();
