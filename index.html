@@ -2,7 +2,7 @@
 <html lang="zh-CN" data-theme="light">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="theme-color" content="#5a3e28" id="meta-theme">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <link rel="manifest" href="manifest.json">
@@ -295,16 +295,20 @@ button, [role="button"] { touch-action: manipulation; cursor: pointer; }
 
 /* 删除 / 编辑按钮 */
 .bk-del, .bk-edit {
-  position: absolute; right: -6px;
-  width: 20px; height: 20px;
-  border-radius: 50%; font-size: 11px; line-height: 20px;
+  position: absolute; right: -10px;
+  width: 28px; height: 28px;
+  border-radius: 50%; font-size: 13px; line-height: 28px;
   text-align: center; z-index: 20; border: none;
   font-family: sans-serif; font-weight: bold;
-  display: none; box-shadow: 0 2px 6px rgba(0,0,0,0.5);
+  display: none; box-shadow: 0 2px 8px rgba(0,0,0,0.55);
   transition: background .15s; color: #fff;
 }
-.bk-del { top: -6px; background: rgba(200,40,40,0.9); font-size: 13px; }
-.bk-edit { bottom: -6px; background: rgba(40,120,200,0.9); }
+/* ::after 将触控区扩展到 44px */
+.bk-del::after, .bk-edit::after {
+  content: ''; position: absolute; inset: -8px;
+}
+.bk-del { top: -10px; background: rgba(200,40,40,0.9); }
+.bk-edit { bottom: -10px; background: rgba(40,120,200,0.9); font-size: 12px; }
 /* hover（桌面端保留）*/
 .bk[data-custom-id]:hover .bk-del,
 .bk[data-custom-id]:hover .bk-edit { display: block; }
@@ -379,7 +383,7 @@ canvas {
   border:none; border-radius:14px;
   font-size:12px; font-family:inherit;
   padding:5px 10px; background:transparent; color:var(--text2);
-  transition:all .15s; min-height:36px;
+  transition:all .15s; min-height:44px;
 }
 .pen-btn.active { background:var(--accent); color:#fff; }
 .pen-btn:active { opacity:.7; }
@@ -497,9 +501,16 @@ canvas {
   transition: opacity .4s;
 }
 #canvas-hint.show { opacity: 1; pointer-events: auto; }
-.hint-icon {
-  font-size: 40px; line-height: 1;
-  animation: hintPulse 1.4s ease-in-out infinite;
+/* CSS 点触圆圈（替代 emoji） */
+.hint-tap {
+  width: 36px; height: 36px;
+  border: 2.5px solid rgba(255,255,255,0.85);
+  border-radius: 50%;
+  animation: hintTap 1.4s ease-in-out infinite;
+}
+@keyframes hintTap {
+  0%, 100% { transform: scale(1);    opacity: .65; }
+  50%       { transform: scale(0.72); opacity: 1;   }
 }
 .hint-text {
   font-size: 14px; color: rgba(255,255,255,0.92);
@@ -510,9 +521,21 @@ canvas {
   font-size: 11px; color: rgba(255,255,255,0.55);
   letter-spacing: .1em;
 }
-@keyframes hintPulse {
-  0%, 100% { transform: scale(1);   opacity: .7; }
-  50%       { transform: scale(1.1); opacity: 1;  }
+
+/* 表单错误提示 */
+#form-error {
+  font-size: 13px; color: #d94040;
+  padding: 8px 12px; border-radius: 8px;
+  background: rgba(220,60,60,0.1);
+  border: 1px solid rgba(220,60,60,0.25);
+  display: none;
+}
+
+/* 自定义书为空时的引导文字 */
+#custom-empty-hint {
+  font-size: 12px; color: rgba(200,160,80,0.45);
+  letter-spacing: .15em; align-self: flex-end;
+  padding-bottom: 28px; padding-left: 8px;
 }
 
 /* ══ 上下文条字符可点击导航 ══ */
@@ -545,7 +568,7 @@ canvas {
   .ctx-char { width: 28px; height: 32px; font-size: 18px; }
   .ctx-char.current { width: 34px; height: 38px; font-size: 22px; }
   #pen-toolbar { padding: 4px 10px; }
-  .pen-btn { min-height: 32px; padding: 4px 8px; }
+  .pen-btn { min-height: 44px; padding: 4px 8px; }
   .size-btn { width: 38px; height: 38px; }
   .ctrl-btn { padding: 10px 12px; }
 }
@@ -559,9 +582,9 @@ canvas {
 <!-- 书架 -->
 <div id="page-shelf" class="page active">
   <div class="page-header">
-    <button class="hdr-btn" id="btn-manage" style="font-size:13px">管理</button>
+    <button class="hdr-btn" id="btn-manage" style="font-size:13px" aria-label="管理自定义书">管理</button>
     <span class="hdr-title">书架</span>
-    <button class="hdr-btn" id="btn-theme">夜</button>
+    <button class="hdr-btn" id="btn-theme" aria-label="切换夜间模式">夜</button>
   </div>
   <div class="shelf-scene">
     <div class="shelf-section-label">经典</div>
@@ -592,6 +615,7 @@ canvas {
           <div class="bk-edge"></div>
         </div>
         <div id="custom-books-row" style="display:contents"></div>
+        <span id="custom-empty-hint">点 + 可添加文字</span>
       </div>
       <div class="shelf-board"></div>
     </div>
@@ -602,9 +626,9 @@ canvas {
 <!-- 练字 -->
 <div id="page-practice" class="page">
   <div class="page-header">
-    <button class="hdr-btn" id="btn-back">&#8592;</button>
+    <button class="hdr-btn" id="btn-back" aria-label="返回书架">&#8592;</button>
     <span class="hdr-title" id="practice-title">心经</span>
-    <button class="hdr-btn" id="btn-fulltext" style="font-size:14px">全文</button>
+    <button class="hdr-btn" id="btn-fulltext" style="font-size:14px" aria-label="查看全文">全文</button>
   </div>
 
   <span style="font-size:13px;color:var(--text3)">
@@ -617,8 +641,8 @@ canvas {
   <div id="canvas-wrap">
     <canvas id="guide-canvas" width="600" height="600"></canvas>
     <canvas id="write-canvas" width="600" height="600"></canvas>
-    <div id="canvas-hint">
-      <div class="hint-icon">👆</div>
+    <div id="canvas-hint" role="tooltip" aria-label="轻触画布可跳到下一字">
+      <div class="hint-tap"></div>
       <div class="hint-text">写完后轻触画布</div>
       <div class="hint-sub">即可跳到下一字</div>
     </div>
@@ -632,13 +656,13 @@ canvas {
     </div>
     <div class="toolbar-div"></div>
     <div class="pen-group">
-      <button class="size-btn active" data-size="sm"><span class="size-dot" style="width:4px;height:4px"></span></button>
-      <button class="size-btn" data-size="md"><span class="size-dot" style="width:7px;height:7px"></span></button>
-      <button class="size-btn" data-size="lg"><span class="size-dot" style="width:11px;height:11px"></span></button>
+      <button class="size-btn active" data-size="sm" aria-label="细笔"><span class="size-dot" style="width:4px;height:4px"></span></button>
+      <button class="size-btn" data-size="md" aria-label="中笔"><span class="size-dot" style="width:7px;height:7px"></span></button>
+      <button class="size-btn" data-size="lg" aria-label="粗笔"><span class="size-dot" style="width:11px;height:11px"></span></button>
     </div>
     <div class="toolbar-sep"></div>
-    <button class="guide-toggle" id="btn-guide">描红</button>
-    <button class="undo-btn" id="btn-undo">↩</button>
+    <button class="guide-toggle" id="btn-guide" aria-label="切换描红字帖">描红</button>
+    <button class="undo-btn" id="btn-undo" aria-label="撤销">↩</button>
   </div>
 
   <div id="controls">
@@ -651,7 +675,7 @@ canvas {
 <!-- 全文 -->
 <div id="page-fulltext" class="page">
   <div class="page-header">
-    <button class="hdr-btn" id="btn-ft-back">&#8592;</button>
+    <button class="hdr-btn" id="btn-ft-back" aria-label="返回练字">&#8592;</button>
     <span class="hdr-title" id="ft-title">心经</span>
     <span style="min-width:44px"></span>
   </div>
@@ -673,7 +697,7 @@ canvas {
 <!-- 自定义输入 -->
 <div id="page-custom" class="page">
   <div class="page-header">
-    <button class="hdr-btn" id="btn-custom-back">&#8592;</button>
+    <button class="hdr-btn" id="btn-custom-back" aria-label="返回书架">&#8592;</button>
     <span class="hdr-title" id="custom-page-title">自定义文本</span>
     <span style="min-width:44px"></span>
   </div>
@@ -686,6 +710,7 @@ canvas {
       <label class="form-label" for="custom-text">内容（粘贴或输入）</label>
       <textarea class="form-input" id="custom-text" placeholder="输入想练习的文字，标点会自动去除…"></textarea>
     </div>
+    <div id="form-error" role="alert">请输入练习内容</div>
     <button class="form-submit" id="btn-custom-submit">开始练习</button>
   </div>
 </div>
@@ -755,8 +780,10 @@ function saveCustomBooks(arr) { localStorage.setItem('custom_books', JSON.string
 function renderCustomShelf() {
   const row = document.getElementById('custom-books-row');
   row.innerHTML = '';
+  const books = loadCustomBooks();
+  document.getElementById('custom-empty-hint').style.display = books.length ? 'none' : '';
   const HEIGHTS = [148, 140, 155, 135, 152];
-  loadCustomBooks().forEach((b, i) => {
+  books.forEach((b, i) => {
     const div = document.createElement('div');
     div.className = 'bk';
     div.dataset.customId = b.id;
@@ -769,8 +796,8 @@ function renderCustomShelf() {
         <div class="bk-band"></div>
       </div>
       <div class="bk-edge"></div>
-      <button class="bk-del"  data-del="${b.id}"  title="删除">×</button>
-      <button class="bk-edit" data-edit="${b.id}" title="编辑">✎</button>`;
+      <button class="bk-del"  data-del="${b.id}"  aria-label="删除《${b.title}》">×</button>
+      <button class="bk-edit" data-edit="${b.id}" aria-label="编辑《${b.title}》">✎</button>`;
     div.addEventListener('click', e => {
       if (e.target.dataset.del || e.target.dataset.edit) return;
       openBook(b.id, b);
@@ -791,15 +818,25 @@ function renderCustomShelf() {
 }
 
 // ══ 页面切换 ══
-function showPage(id) {
+function showPage(id, push = true) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.getElementById(id).classList.add('active');
-  // 离开书架时退出管理模式
+  if (push) history.pushState({ page: id }, '');
   if (id !== 'page-shelf') {
     document.querySelector('.shelf-scene').classList.remove('manage-mode');
     document.getElementById('btn-manage').textContent = '管理';
   }
 }
+
+window.addEventListener('popstate', e => {
+  // 离开练字页时自动保存进度
+  if (document.querySelector('#page-practice.active') && currentId) {
+    saveProg(currentId, current);
+    refreshShelfProgress();
+  }
+  editingId = null;
+  showPage(e.state?.page || 'page-shelf', false);
+});
 
 // ══ 练字状态 ══
 let currentId   = null;
@@ -1131,10 +1168,10 @@ document.getElementById('btn-next').addEventListener('click', goNext);
 document.getElementById('btn-back').addEventListener('click', () => {
   saveProg(currentId, current);
   refreshShelfProgress();
-  showPage('page-shelf');
+  history.back();
 });
 document.getElementById('btn-fulltext').addEventListener('click', ()=>{ renderFullText(); showPage('page-fulltext'); });
-document.getElementById('btn-ft-back').addEventListener('click', ()=> showPage('page-practice'));
+document.getElementById('btn-ft-back').addEventListener('click', () => history.back());
 
 document.querySelectorAll('.bk[data-book]').forEach(el => {
   el.addEventListener('click', ()=> openBook(el.dataset.book, PRESET[el.dataset.book]));
@@ -1168,14 +1205,22 @@ document.getElementById('btn-manage').addEventListener('click', () => {
 document.getElementById('btn-add-custom').addEventListener('click', openAddCustom);
 document.getElementById('btn-custom-back').addEventListener('click', () => {
   editingId = null;
-  showPage('page-shelf');
+  history.back();
 });
+const formError = document.getElementById('form-error');
+document.getElementById('custom-text').addEventListener('input', () => { formError.style.display = 'none'; });
+
 document.getElementById('btn-custom-submit').addEventListener('click', () => {
   const title = document.getElementById('custom-name').value.trim() || '自定义';
   const raw   = document.getElementById('custom-text').value.trim();
-  if (!raw) return;
   const charArr = stripPunct(raw);
-  if (!charArr.length) return;
+  if (!raw || !charArr.length) {
+    formError.textContent = raw ? '内容中没有找到汉字，请重新输入' : '请输入练习内容';
+    formError.style.display = 'block';
+    document.getElementById('custom-text').focus();
+    return;
+  }
+  formError.style.display = 'none';
 
   if (editingId) {
     // 编辑模式：更新已有书，进度保留（上限调整到新长度）
@@ -1210,6 +1255,7 @@ if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').ca
 applyTheme();
 renderCustomShelf();
 refreshShelfProgress();
+history.replaceState({ page: 'page-shelf' }, '');
 </script>
 </body>
 </html>
