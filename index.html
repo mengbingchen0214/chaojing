@@ -305,8 +305,12 @@ button, [role="button"] { touch-action: manipulation; cursor: pointer; }
 }
 .bk-del { top: -6px; background: rgba(200,40,40,0.9); font-size: 13px; }
 .bk-edit { bottom: -6px; background: rgba(40,120,200,0.9); }
+/* hover（桌面端保留）*/
 .bk[data-custom-id]:hover .bk-del,
 .bk[data-custom-id]:hover .bk-edit { display: block; }
+/* 管理模式（移动端） */
+.shelf-scene.manage-mode .bk[data-custom-id] .bk-del,
+.shelf-scene.manage-mode .bk[data-custom-id] .bk-edit { display: block; }
 .bk-del:active  { background: rgba(170,15,15,1); }
 .bk-edit:active { background: rgba(20,80,160,1); }
 
@@ -555,7 +559,7 @@ canvas {
 <!-- 书架 -->
 <div id="page-shelf" class="page active">
   <div class="page-header">
-    <span style="min-width:44px"></span>
+    <button class="hdr-btn" id="btn-manage" style="font-size:13px">管理</button>
     <span class="hdr-title">书架</span>
     <button class="hdr-btn" id="btn-theme">夜</button>
   </div>
@@ -791,6 +795,11 @@ function renderCustomShelf() {
 function showPage(id) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.getElementById(id).classList.add('active');
+  // 离开书架时退出管理模式
+  if (id !== 'page-shelf') {
+    document.querySelector('.shelf-scene').classList.remove('manage-mode');
+    document.getElementById('btn-manage').textContent = '管理';
+  }
 }
 
 // ══ 练字状态 ══
@@ -1150,6 +1159,12 @@ function openEditCustom(b) {
   document.getElementById('btn-custom-submit').textContent = '保存修改';
   showPage('page-custom');
 }
+
+const shelfScene = document.querySelector('.shelf-scene');
+document.getElementById('btn-manage').addEventListener('click', () => {
+  const managing = shelfScene.classList.toggle('manage-mode');
+  document.getElementById('btn-manage').textContent = managing ? '完成' : '管理';
+});
 
 document.getElementById('btn-add-custom').addEventListener('click', openAddCustom);
 document.getElementById('btn-custom-back').addEventListener('click', () => {
