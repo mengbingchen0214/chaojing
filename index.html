@@ -328,9 +328,39 @@ button, [role="button"] { touch-action: manipulation; cursor: pointer; }
 #page-practice .page-header { background:var(--bg2); }
 
 /* #7 响应式 panel 宽度 */
-#context-strip, #pen-toolbar, #canvas-wrap, #controls {
+#context-strip, #pen-toolbar, #canvas-row, #controls {
   width: var(--panel-w);
 }
+
+/* 田字格左右导航布局 */
+#canvas-row {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+}
+#canvas-wrap {
+  flex: 1;
+  min-width: 0;
+}
+.nav-side-btn {
+  width: 44px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: none;
+  color: var(--text3);
+  font-family: inherit;
+  font-size: 12px;
+  letter-spacing: .2em;
+  writing-mode: vertical-rl;
+  cursor: pointer;
+  transition: color .15s cubic-bezier(0.32,0.72,0,1), background .15s;
+  border-radius: 8px;
+  -webkit-tap-highlight-color: transparent;
+}
+.nav-side-btn:active { color: var(--accent); background: rgba(128,80,20,0.08); }
 #canvas-wrap {
   position:relative;
   aspect-ratio:1/1;
@@ -417,9 +447,9 @@ canvas {
 .undo-btn:active { opacity:.6; }
 
 /* 导航按钮 */
-#controls { display:flex; gap:10px; }
+#controls { display:flex; justify-content:center; }
 .ctrl-btn {
-  flex:1; padding:12px 16px; border:none; border-radius:999px;
+  padding:12px 40px; border:none; border-radius:999px;
   font-size:14px; font-family:inherit;
   background:var(--bg-card); color:var(--text);
   box-shadow:0 2px 10px var(--shadow);
@@ -427,8 +457,6 @@ canvas {
 }
 /* #9 버튼 press 피드백 */
 .ctrl-btn:active { transform:scale(0.96); box-shadow:none; background:rgba(128,80,20,0.12); }
-#btn-next { background:var(--accent); color:#fff; }
-#btn-next:active { background:var(--accent-lt); }
 
 /* ══ 全文页 ══ */
 #page-fulltext { background:var(--bg3); transition:background .3s; }
@@ -488,39 +516,6 @@ canvas {
 }
 .form-submit:active { transform:scale(0.97); }
 
-/* ══ 画布轻触引导提示 ══ */
-#canvas-hint {
-  position: absolute; inset: 0; z-index: 10;
-  display: flex; flex-direction: column;
-  align-items: center; justify-content: center;
-  gap: 10px;
-  background: rgba(0,0,0,0.38);
-  border-radius: 12px;
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity .4s;
-}
-#canvas-hint.show { opacity: 1; pointer-events: auto; }
-/* CSS 点触圆圈（替代 emoji） */
-.hint-tap {
-  width: 36px; height: 36px;
-  border: 2.5px solid rgba(255,255,255,0.85);
-  border-radius: 50%;
-  animation: hintTap 1.4s ease-in-out infinite;
-}
-@keyframes hintTap {
-  0%, 100% { transform: scale(1);    opacity: .65; }
-  50%       { transform: scale(0.72); opacity: 1;   }
-}
-.hint-text {
-  font-size: 14px; color: rgba(255,255,255,0.92);
-  letter-spacing: .15em; text-align: center;
-  font-family: KaiTi, STKaiti, 楷体, serif;
-}
-.hint-sub {
-  font-size: 11px; color: rgba(255,255,255,0.55);
-  letter-spacing: .1em;
-}
 
 /* 表单错误提示 */
 #form-error {
@@ -775,14 +770,13 @@ canvas {
   <!-- #6 上下文条支持左右滑动切字 -->
   <div id="context-strip"></div>
 
-  <div id="canvas-wrap">
-    <canvas id="guide-canvas" width="600" height="600"></canvas>
-    <canvas id="write-canvas" width="600" height="600"></canvas>
-    <div id="canvas-hint" role="tooltip" aria-label="轻触画布可跳到下一字">
-      <div class="hint-tap"></div>
-      <div class="hint-text">写完后轻触画布</div>
-      <div class="hint-sub">即可跳到下一字</div>
+  <div id="canvas-row">
+    <button class="nav-side-btn" id="btn-prev" aria-label="上一字">上一字</button>
+    <div id="canvas-wrap">
+      <canvas id="guide-canvas" width="600" height="600"></canvas>
+      <canvas id="write-canvas" width="600" height="600"></canvas>
     </div>
+    <button class="nav-side-btn" id="btn-next" aria-label="下一字">下一字</button>
   </div>
 
   <div id="pen-toolbar">
@@ -803,9 +797,7 @@ canvas {
   </div>
 
   <div id="controls">
-    <button class="ctrl-btn" id="btn-prev">上一字</button>
     <button class="ctrl-btn" id="btn-clear">清空</button>
-    <button class="ctrl-btn" id="btn-next">下一字</button>
   </div>
   <button class="hx-trigger" id="btn-huixiang" aria-label="回向">回　向</button>
 </div>
@@ -1095,7 +1087,6 @@ function applyStyle(pos, dist) {
 }
 function startDraw(e) {
   if (drawing) return;  // 防止 pointer+touch 双重触发
-  dismissHint();
   e.preventDefault(); pushUndo(); drawing = true;
   tapDist = 0; tapStartTime = Date.now();
   const pos = getPos(e);
@@ -1129,28 +1120,8 @@ function endDraw(e) {
   e.preventDefault();
   if (!drawing) return;
   drawing = false;
-  // 轻触画布（移动 < 20px、< 300ms）= 下一字，无需移手
-  if (tapDist < 20 && Date.now() - tapStartTime < 300) {
-    undoStack.pop();  // 撤销本次空白 pushUndo
-    goNext();
-  }
 }
 
-// ══ 画布轻触引导（仅首次） ══
-const canvasHint = document.getElementById('canvas-hint');
-let hintTimer = null;
-function showCanvasHint() {
-  if (localStorage.getItem('hint_tap_seen')) return;
-  canvasHint.classList.add('show');
-  hintTimer = setTimeout(dismissHint, 3500);
-}
-function dismissHint() {
-  clearTimeout(hintTimer);
-  canvasHint.classList.remove('show');
-  localStorage.setItem('hint_tap_seen', '1');
-}
-canvasHint.addEventListener('pointerdown', dismissHint);
-canvasHint.addEventListener('touchstart', dismissHint, {passive:true});
 
 wCanvas.addEventListener('pointerdown',   startDraw, {passive:false});
 wCanvas.addEventListener('pointermove',   doDraw,    {passive:false});
@@ -1226,10 +1197,7 @@ function refreshPractice() {
   updateContext();
 }
 
-function showPracticeHints() {
-  // 第一次打开练字页时，延迟 1s 显示引导
-  setTimeout(showCanvasHint, 1000);
-}
+function showPracticeHints() {}
 
 // ══ 打开书 ══
 function openBook(id, bookData) {
