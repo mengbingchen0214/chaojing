@@ -553,6 +553,65 @@ canvas {
   line-height: 1;
 }
 
+/* ══ 回向按钮（练字页底部） ══ */
+.hx-trigger {
+  font-size: 13px; letter-spacing: .5em;
+  color: var(--text3); font-family: inherit;
+  background: none; border: 1px solid var(--border);
+  border-radius: 999px; padding: 8px 24px;
+  cursor: pointer; transition: color .2s, border-color .2s;
+  min-height: 44px; opacity: 0.7;
+}
+.hx-trigger:active { color: var(--accent-lt); border-color: var(--accent-lt); opacity: 1; }
+
+/* ══ 回向弹窗 ══ */
+#huixiang-modal {
+  position: fixed; inset: 0; z-index: 200;
+  background: rgba(8,4,0,0);
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0; pointer-events: none;
+  transition: opacity .5s cubic-bezier(0.32,0.72,0,1), background .5s;
+}
+#huixiang-modal.open { opacity: 1; pointer-events: all; background: rgba(8,4,0,0.96); }
+.hx-inner {
+  display: flex; flex-direction: column;
+  align-items: center; gap: 24px;
+  padding: 52px 32px 44px;
+}
+.hx-decor {
+  width: 1px; height: 36px;
+  background: linear-gradient(to bottom, transparent, rgba(180,120,40,0.55), transparent);
+}
+.hx-label {
+  font-size: 13px; letter-spacing: .6em;
+  color: rgba(180,120,40,0.5);
+  font-family: KaiTi, STKaiti, 楷体, serif;
+}
+.hx-verse {
+  font-family: KaiTi, STKaiti, 楷体, serif;
+  font-size: 21px; line-height: 2.4;
+  color: #d4a84b; text-align: center;
+  letter-spacing: .05em;
+}
+.hx-char {
+  display: inline-block;
+  opacity: 0; transform: translateY(8px);
+  transition: opacity .5s cubic-bezier(0.22,1,0.36,1),
+              transform .5s cubic-bezier(0.22,1,0.36,1);
+}
+.hx-char.vis { opacity: 1; transform: translateY(0); }
+.hx-close {
+  font-size: 14px; letter-spacing: .45em;
+  color: rgba(180,120,40,0.45);
+  font-family: KaiTi, STKaiti, 楷体, serif;
+  background: none;
+  border: 1px solid rgba(180,120,40,0.2);
+  border-radius: 999px; padding: 10px 32px;
+  cursor: pointer; transition: color .3s, border-color .3s;
+  min-height: 44px;
+}
+.hx-close:active { color: rgba(220,160,60,0.9); border-color: rgba(220,160,60,0.5); }
+
 /* ══ 页脚 ══ */
 .site-footer {
   display: flex; justify-content: center; gap: 28px; align-items: center;
@@ -678,6 +737,17 @@ canvas {
   </div>
 </div>
 
+<!-- 回向弹窗 -->
+<div id="huixiang-modal" role="dialog" aria-modal="true" aria-label="回向偈">
+  <div class="hx-inner">
+    <div class="hx-label">回　向</div>
+    <div class="hx-decor"></div>
+    <div class="hx-verse" id="hx-verse-text" aria-live="polite"></div>
+    <div class="hx-decor"></div>
+    <button class="hx-close" id="btn-hx-close" aria-label="关闭">合　十</button>
+  </div>
+</div>
+
 <!-- QR 弹窗 -->
 <div id="qr-modal" role="dialog" aria-modal="true" aria-label="赞赏支持">
   <div class="qr-box">
@@ -737,6 +807,7 @@ canvas {
     <button class="ctrl-btn" id="btn-clear">清空</button>
     <button class="ctrl-btn" id="btn-next">下一字</button>
   </div>
+  <button class="hx-trigger" id="btn-huixiang" aria-label="回向">回　向</button>
 </div>
 
 <!-- 全文 -->
@@ -993,7 +1064,7 @@ document.getElementById('btn-undo').addEventListener('click', () => {
 
 // 书写
 let drawing = false, lastX = 0, lastY = 0;
-let tapStartTime = 0, tapMoved = false;
+let tapStartTime = 0, tapDist = 0, prevX = 0, prevY = 0, lastLineWidth = 1;
 function getPos(e) {
   const r = wCanvas.getBoundingClientRect();
   const sx = wCanvas.width/r.width, sy = wCanvas.height/r.height;
@@ -1002,50 +1073,64 @@ function getPos(e) {
 }
 function applyStyle(pos, dist) {
   const m = SZ[penSize];
+  let target;
   wCtx.globalAlpha = 1; wCtx.shadowBlur = 0; wCtx.shadowColor = 'transparent';
   if (penType==='pen') {
-    wCtx.lineWidth = (1.5+pos.p*2)*m;
+    target = (1.5+pos.p*2)*m;
     wCtx.strokeStyle = dark ? '#e8d8b0' : '#0d0500';
     wCtx.globalAlpha = 0.92;
   } else if (penType==='brush') {
     const spd = Math.min(dist,50), r = 1-spd/50;
-    wCtx.lineWidth = ((3+pos.p*12)*(0.25+0.75*r))*m;
+    target = ((3+pos.p*12)*(0.25+0.75*r))*m;
     wCtx.strokeStyle = dark ? '#f0e0c0' : '#050200';
-    wCtx.shadowBlur  = wCtx.lineWidth*.18;
+    wCtx.shadowBlur  = target*.18;
     wCtx.shadowColor = dark ? 'rgba(255,220,150,0.3)' : 'rgba(0,0,0,0.35)';
   } else {
-    wCtx.lineWidth = (1.2+pos.p*1.5)*m;
+    target = (1.2+pos.p*1.5)*m;
     wCtx.strokeStyle = dark ? '#b0a090' : '#3a3228';
     wCtx.globalAlpha = 0.55;
   }
+  lastLineWidth = lastLineWidth * 0.55 + target * 0.45;
+  wCtx.lineWidth = lastLineWidth;
 }
 function startDraw(e) {
   if (drawing) return;  // 防止 pointer+touch 双重触发
   dismissHint();
   e.preventDefault(); pushUndo(); drawing = true;
-  tapMoved = false; tapStartTime = Date.now();
-  const pos = getPos(e); lastX=pos.x; lastY=pos.y;
+  tapDist = 0; tapStartTime = Date.now();
+  const pos = getPos(e);
+  prevX = pos.x; prevY = pos.y; lastX = pos.x; lastY = pos.y;
+  lastLineWidth = SZ[penSize] * (penType==='brush' ? 5 : 2);
   wCtx.beginPath(); wCtx.moveTo(pos.x,pos.y);
 }
 function doDraw(e) {
   e.preventDefault(); if (!drawing) return;
-  const pos = getPos(e), dist = Math.hypot(pos.x-lastX,pos.y-lastY);
-  if (dist<1) return;
-  tapMoved = true;
+  const pos = getPos(e), dist = Math.hypot(pos.x-lastX, pos.y-lastY);
+  if (dist < 1) return;
+  tapDist += dist;
   applyStyle(pos, dist);
-  wCtx.lineTo(pos.x,pos.y); wCtx.stroke();
+  // 贝塞尔中点平滑：以相邻点中点为控制点，消除折线锯齿
+  const mx = (lastX + pos.x) / 2, my = (lastY + pos.y) / 2;
+  wCtx.beginPath();
+  wCtx.moveTo((prevX + lastX) / 2, (prevY + lastY) / 2);
+  wCtx.quadraticCurveTo(lastX, lastY, mx, my);
+  wCtx.stroke();
   if (penType==='pencil') {
     wCtx.globalAlpha=.2; wCtx.lineWidth=Math.max(1,wCtx.lineWidth*.5);
-    wCtx.beginPath(); wCtx.moveTo(lastX+1,lastY+1); wCtx.lineTo(pos.x+1,pos.y+1); wCtx.stroke();
+    wCtx.beginPath();
+    wCtx.moveTo((prevX + lastX) / 2 + 1, (prevY + lastY) / 2 + 1);
+    wCtx.quadraticCurveTo(lastX+1, lastY+1, mx+1, my+1);
+    wCtx.stroke();
   }
-  wCtx.beginPath(); wCtx.moveTo(pos.x,pos.y); lastX=pos.x; lastY=pos.y;
+  prevX = lastX; prevY = lastY;
+  lastX = pos.x; lastY = pos.y;
 }
 function endDraw(e) {
   e.preventDefault();
   if (!drawing) return;
   drawing = false;
-  // 轻触画布（无移动、< 250ms）= 下一字，无需移手
-  if (!tapMoved && Date.now() - tapStartTime < 250) {
+  // 轻触画布（移动 < 20px、< 300ms）= 下一字，无需移手
+  if (tapDist < 20 && Date.now() - tapStartTime < 300) {
     undoStack.pop();  // 撤销本次空白 pushUndo
     goNext();
   }
@@ -1314,6 +1399,31 @@ document.getElementById('btn-custom-submit').addEventListener('click', () => {
     openBook(id, book);
   }
 });
+
+// ══ 回向 ══
+const VERSE = ['抄','经','功','德','殊','胜','行','，','无','边','胜','福','皆','回','向','。','普','愿','沉','溺','诸','众','生','，','速','往','无','量','光','佛','刹','。'];
+const hxModal = document.getElementById('huixiang-modal');
+const hxVerseEl = document.getElementById('hx-verse-text');
+
+function openHuixiang() {
+  // 先构建 span 节点（隐藏）
+  hxVerseEl.innerHTML = VERSE.map((ch, i) => {
+    const br = (i === 7 || i === 15 || i === 23) ? '<br>' : '';
+    return `<span class="hx-char" data-i="${i}">${ch}</span>${br}`;
+  }).join('');
+  hxModal.classList.add('open');
+  // 逐字淡入（标点跟随前一字 delay）
+  hxVerseEl.querySelectorAll('.hx-char').forEach(span => {
+    const i = +span.dataset.i;
+    setTimeout(() => span.classList.add('vis'), 120 + i * 90);
+  });
+}
+function closeHuixiang() {
+  hxModal.classList.remove('open');
+}
+document.getElementById('btn-huixiang').addEventListener('click', openHuixiang);
+document.getElementById('btn-hx-close').addEventListener('click', closeHuixiang);
+hxModal.addEventListener('click', e => { if (e.target === hxModal) closeHuixiang(); });
 
 // ══ QR 弹窗 ══
 const qrModal = document.getElementById('qr-modal');
