@@ -7,6 +7,9 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Liu+Jian+Mao+Cao&display=swap" rel="stylesheet">
 <title>临摹书架</title>
 <style>
 /* ══ 主题变量 ══ */
@@ -387,6 +390,7 @@ canvas {
 .ctx-char {
   display:inline-flex; align-items:center; justify-content:center;
   width:32px; height:36px; font-size:20px;
+  font-family: 'Liu Jian Mao Cao', KaiTi, STKaiti, 楷体, cursive;
   color:var(--text2); border-radius:6px; flex-shrink:0; transition:all .2s;
 }
 .ctx-char.done     { opacity:.4; }
@@ -1009,7 +1013,7 @@ function drawGuide(char) {
   gCtx.lineWidth = 3;
   gCtx.strokeRect(4,4,s-8,s-8);
 
-  gCtx.font = `${s*.78}px KaiTi,STKaiti,楷体,serif`;
+  gCtx.font = `${s*.78}px 'Liu Jian Mao Cao',cursive`;
   gCtx.fillStyle = dark ? 'rgba(200,140,60,0.18)' : 'rgba(160,100,60,0.18)';
   gCtx.textAlign = 'center'; gCtx.textBaseline = 'middle';
   gCtx.fillText(char, s/2, s/2);
